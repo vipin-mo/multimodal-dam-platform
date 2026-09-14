@@ -118,7 +118,7 @@ The application orchestrates **decoupled containers** communicating over a virtu
 ### 1. Clone the Repository
 
 ```bash
-git clone hhttps://github.com/vipin-mo/multimodal-dam-rag-platform.git
+git clone https://github.com/vipin-mo/multimodal-dam-rag-platform.git
 cd multimodal-dam-rag-platform
 
 ```
