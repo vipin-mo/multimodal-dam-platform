@@ -1,0 +1,195 @@
+networks:
+  dam-network:
+    name: dam-network
+    driver: bridge
+
+volumes:
+  qdrant_storage:
+  ollama_storage:
+  postgres_data:
+  minio_data:
+  shared_media:
+
+services:
+  # --------------------------------------------------------------------
+  # Core Infrastructure & Database Engines
+  # --------------------------------------------------------------------
+  vector-db:
+    image: qdrant/qdrant:v1.8.0
+    container_name: dam-vector-db
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    networks:
+      - dam-network
+    restart: unless-stopped
+
+  postgres-db:
+    image: postgres:15-alpine
+    container_name: dam-postgres-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dam_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - dam-network
+    restart: unless-stopped
+
+  redis-cache:
+    image: redis:7-alpine
+    container_name: dam-redis-cache
+    ports:
+      - "6379:6379"
+    networks:
+      - dam-network
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: dam-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - dam-network
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: dam-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: admin_vipin
+      MINIO_ROOT_PASSWORD: admin_vipin
+      MINIO_BROWSER_REDIRECT_URL: http://localhost:9000
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - dam-network
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------
+  # Artificial Intelligence & Local LLM Runtimes
+  # --------------------------------------------------------------------
+  ollama-engine:
+    image: ollama/ollama:latest
+    container_name: dam-ollama-engine
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_storage:/root/.ollama
+    networks:
+      - dam-network
+    restart: unless-stopped
+
+  ollama-initializer:
+    image: alpine:latest
+    container_name: dam-ollama-initializer
+    depends_on:
+      - ollama-engine
+    networks:
+      - dam-network
+    entrypoint: [ "/bin/sh", "-c" ]
+    command: >
+      apk add --no-cache curl &&
+      echo 'Waiting for Ollama Engine to fully boot...' &&
+      until curl -s http://ollama-engine:11434/api/tags > /dev/null; do sleep 3; done &&
+      echo 'Pulling model qwen2.5:1.5b...' &&
+      curl -X POST http://ollama-engine:11434/api/pull -d '{"name": "qwen2.5:1.5b", "stream": false}' &&
+      echo 'Pulling vision model llava...' &&
+      curl -X POST http://ollama-engine:11434/api/pull -d '{"name": "llava", "stream": false}' &&
+      echo 'Model initialization sequence completed successfully.'
+
+  # --------------------------------------------------------------------
+  # Application Services Layer
+  # --------------------------------------------------------------------
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dam-api-gateway
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres-db:5432/dam_db
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=admin_vipin
+      - MINIO_SECRET_KEY=admin_vipin
+      - QDRANT_HOST=vector-db
+      - QDRANT_PORT=6333
+      - OLLAMA_URL=http://ollama-engine:11434/v1/chat/completions
+      - OLLAMA_MODEL=qwen2.5:1.5b
+      - OLLAMA_VISION_MODEL=llava
+      - OLLAMA_HOST=http://ollama-engine:11434
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
+      - CELERY_RESULT_BACKEND=redis://redis-cache:6379/0
+      - JWT_SECRET=super-secret-enterprise-dam-signing-key-2026
+      - SHARED_MEDIA_DIR=/app/shared-media
+    volumes:
+      - shared_media:/app/shared-media
+    depends_on:
+      - postgres-db
+      - vector-db
+      - minio
+      - rabbitmq
+      - redis-cache
+    networks:
+      - dam-network
+    restart: unless-stopped
+
+  ingestion-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dam-ingestion-worker
+    command: celery -A app.processor.celery_app worker --loglevel=info --concurrency=2
+    environment:
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=admin_vipin
+      - MINIO_SECRET_KEY=admin_vipin
+      - QDRANT_HOST=vector-db
+      - QDRANT_PORT=6333
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
+      - CELERY_RESULT_BACKEND=redis://redis-cache:6379/0
+      - API_GATEWAY_URL=http://api-gateway:8000
+      - OMP_NUM_THREADS=1
+      - SHARED_MEDIA_DIR=/app/shared-media
+    volumes:
+      - shared_media:/app/shared-media
+    depends_on:
+      - rabbitmq
+      - redis-cache
+      - vector-db
+      - minio
+    networks:
+      - dam-network
+    restart: unless-stopped
+
+  frontend-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dam-frontend-ui
+    command: streamlit run app/app.py --server.port 8501 --server.address 0.0.0.0 --server.fileWatcherType poll
+    ports:
+      - "8501:8501"
+    environment:
+      - API_GATEWAY_URL=http://api-gateway:8000
+    depends_on:
+      - api-gateway
+    networks:
+      - dam-network
+    restart: unless-stopped

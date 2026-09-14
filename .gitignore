@@ -1,0 +1,15 @@
+# Python System & Cache Files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.env
+
+# Local Development Environments
+.venv/
+env/
+venv/
+ENV/
+
+# OS Generated Files
+.DS_Store
