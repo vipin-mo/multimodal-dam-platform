@@ -1,4 +1,4 @@
-# Enterprise Multimodal Digital Asset Management (DAM) Platform
+# Enterprise Multimodal Digital Asset Management (DAM) & RAG Platform
 
 > **Portfolio Showcase:** Designed and engineered as a production-grade, distributed systems architecture demonstrating advanced backend orchestration, decoupled microservices, asynchronous task queues, high-performance vector indexing, and multimodal Large Language Model (LLM/VLM) integration.
 
@@ -6,7 +6,7 @@
 
 ## Executive Overview
 
-The **Enterprise Multimodal DAM Platform** is a decoupled, containerized digital asset management system designed to process, analyze, and index heterogeneous enterprise assets—including PDFs, high-resolution images, audio streams, and long-form video files. Built to simulate high-throughput enterprise workloads, the platform features a microservice architecture separating ingestion streaming, background task execution, vector storage grids, and local LLM/VLM inference clusters.
+The **Enterprise Multimodal DAM & RAG Platform** is a decoupled, containerized digital asset management system designed to process, analyze, and index heterogeneous enterprise assets—including PDFs, high-resolution images, audio streams, and long-form video files. Built to simulate high-throughput enterprise workloads, the platform features a microservice architecture separating ingestion streaming, background task execution, vector storage grids, and local LLM/VLM inference clusters.
 
 The system provides users with real-time progress tracking, conversational Retrieval-Augmented Generation (RAG), timeline-aware summaries, and dual-vector cross-modal semantic search through an interactive web workspace.
 
@@ -72,7 +72,7 @@ graph TD
 
 ## Microservice Matrix
 
-The application orchestrates **eight decoupled containers** communicating over a virtual bridge network (`dam-network`):
+The application orchestrates **decoupled containers** communicating over a virtual bridge network (`dam-network`):
 
 | Container Name | Internal Hostname | Port Mapping | Storage Volume / Mount |
 | --- | --- | --- | --- |
@@ -118,14 +118,14 @@ The application orchestrates **eight decoupled containers** communicating over a
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/vipin-mo/multimodal-dam-platform.git
-cd multimodal-dam
+git clone hhttps://github.com/vipin-mo/multimodal-dam-rag-platform.git
+cd multimodal-dam-rag-platform
 
 ```
 
 ### 2. Launch Container Matrix
 
-Build and spin up the complete eight-node container environment in detached mode:
+Build and spin up the complete container environment in detached mode:
 
 ```bash
 docker compose up --build -d
